@@ -4,19 +4,14 @@ var gulp = require('gulp'),
 var http = require('http'),
     runSequence = require('run-sequence'),
     sass = require('gulp-ruby-sass'),
-//    autoprefixer = require('gulp-autoprefixer'),
-//    minifycss = require('gulp-minify-css'),
     jshint = require('gulp-jshint'),
     rename = require('gulp-rename'),
     uglify = require('gulp-uglify'),
+    zopfli = require('gulp-zopfli'),
     clean = require('gulp-clean'),
     concat = require('gulp-concat'),
-//    imagemin = require('gulp-imagemin'),
     cache = require('gulp-cache'),
-//    open = require('gulp-open'),
     livereload = require('gulp-livereload'),
-//    embedlr = require('gulp-embedlr'),
-//    ecstatic = require('ecstatic'),
     lr = require('tiny-lr'),
     server = lr()
     ;
@@ -89,7 +84,8 @@ gulp.task('worker-scripts', function () {
             if(path.basename.indexOf('.min') == -1)
                 path.basename += '.min'
         }))
-        .pipe(uglify())
+        //.pipe(uglify()) // don't uglify for now, emscripten needs to be handled more carefully
+        //.pipe(zopfli()) // TODO: figure out how to get Chrome's Workers to accept gzipped files
         .pipe(gulp.dest(config.dest_js))
         .pipe(livereload(server))
 });
