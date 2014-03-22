@@ -1,9 +1,10 @@
 from contextlib import contextmanager
 from fabric.api import *
 from fabric.contrib.files import exists
-import os
+import os, time
 
 # no passwords here, host authentication is in  ~/.ssh/config
+
 env.roledefs = {
     'development': ['localhost'],
     'production': ['git@what.you.say.icanhaserror.com:7693']
@@ -98,14 +99,34 @@ def push_recordings():
     with lcd(path):
         put('recordings/*.ogg', env.path_recordings, mode=0664)
 
+
+@roles('production')
+def pull_recordings():
+    require('path_recordings', provided_by=[production])
+
+    path = os.path.dirname(os.path.realpath(__file__))
+    with lcd(path):
+        get(env.path_recordings + '/*.ogg', 'storage/recordings/')
+
 @roles('production')
 def push_assets():
     require('path_current', provided_by=[production])
 
     path = os.path.dirname(os.path.realpath(__file__))
     with lcd(path):
-        put('system/public/assets/img/*', '%s/public/assets/img/' % env.path_current, mode=0664)
+        put('system/public/profile_images/*', '%s/public/profile_images/' % env.path_current, mode=0664)
 
+@roles('production')
+def get_db_backup():
+    require('path', provided_by=[production])
+    backup_folder = 'backups/' + time.strftime('%Y%m%d_%H%M')
+    tarfile = '%s.tar.gz' % backup_folder
+
+    with lcd(os.path.dirname(os.path.realpath(__file__))):
+        with cd(env.path):
+            run('mongodump -d quips -o %s' % backup_folder)
+            run('tar czf %s %s' % (tarfile, backup_folder))
+            get(tarfile, tarfile)
 
 # this is the good stuff right here
 # 'git rev-parse production/master' will give you back the latest commit_id that made it over to the server
@@ -120,8 +141,8 @@ def deploy(commit_id):
         with hide('output','running','warnings'), settings(warn_only=True), lcd('system'):
             commit_test = local("git log %s -n 1 --oneline" % commit_id, True)
             if commit_test.startswith('fatal') or not commit_test.startswith(commit_id[:5]):
-                print "Canceling deploy; log does not contain commit: %s" % commit_id
-                return
+                puts("Canceling deploy; log does not contain commit: %s" % commit_id)
+                exit()
 
         env.req_commit = commit_id
         env.req_path = '%(path_revisions)s/%(req_commit)s' % env
@@ -147,9 +168,15 @@ def deploy(commit_id):
             # setup static paths
             puts("Updating paths..")
             with cd(env.path):
-                # public storage links
+                # setup storage links
                 run('ln -sfn %s %s/public/recordings' % (env.path_recordings, env.req_path))
                 run('ln -sfn %s %s/public/profile_images' % (env.path_profile_images, env.req_path))
+
+                path_conf = '%s/conf/' % env.req_path
+
+                # install configuration
+                put('conf/app.ini', path_conf, mode=0664)
+                put('conf/flask.ini', path_conf, mode=0664)
 
                 # final step: link to new revision
                 run('ln -sfn revisions/%s system' % commit_id)
