@@ -10,8 +10,14 @@ setup local env
 clone quips-python into quips-deployment/system
 then basic setup:
 ```
+virtualenv venv
+source venv/bin/activate
+pip install -r requirements.txt
 cp conf/app.ini system/conf/
 cp conf/flask.ini system/conf/
 mkdir -p system/public/recordings
 mkdir -p system/public/profile_images
+bundle
+gulp
+python system/app/main.py
 ```
