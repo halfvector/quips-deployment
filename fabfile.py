@@ -184,20 +184,20 @@ def deploy(commit_id):
 def remove(commit_id):
     """Removes a revision from production. If doing so breaks 'current' symlink, it performs a fallback"""
     require('path_revisions', 'path_current', provided_by=[production])
-    
+
     puts("removing commit: %s" % commit_id)
     env.req_commit = commit_id
-    
+
     # flatten and evaluate path (to get rid of ../ traversal operators)
     env.req_path = os.path.realpath('%(path_revisions)s/%(req_commit)s' % env)
     puts('Removing revision: %s' % env.req_path)
-    
+
     # a hardcoded sanity check just in case
     # to prevent any kind of traversal attacks
     if not 'revisions' in env.req_path:
         puts('Sanity Failure: request path does not contain "revisions" as expected')
         exit()
-    
+
     # at this point we know at least once thing:
     # path_revisions + req_paths, evaluated fully, don't point to /, but to a path with 'revisions' in it
     # that's not a lot, but provides some tiny resemblance of sanity
