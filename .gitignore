@@ -6,3 +6,5 @@ node_modules
 bower_components/
 .idea
 system
+backups
+storage
