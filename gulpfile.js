@@ -11,6 +11,7 @@ var http = require('http'),
     clean = require('gulp-clean'),
     concat = require('gulp-concat'),
     cache = require('gulp-cache'),
+    express = require('express'),
     livereload = require('gulp-livereload'),
     lr = require('tiny-lr'),
     server = lr()
@@ -110,6 +111,12 @@ gulp.task('clean', function() {
   return gulp.src(['system/public/assets/css', 'system/public/assets/js'], {read: false})
     .pipe(clean());
 });
+
+gulp.task('serve', function() {
+    var server = express();
+    server.use(express.static('system/public/'));
+    server.listen(config.livereload_port);
+})
 
 // default task -- run 'gulp' from cli
 gulp.task('default', function (callback) {

@@ -4,9 +4,10 @@ from fabric.contrib.files import exists
 import os, time
 
 # no passwords stored here, all host authentication is in  ~/.ssh/config
-
+env.use_ssh_config = True
 env.roledefs = {
     'development': ['localhost'],
+    'staging': ['staging.quips'],
     'production': ['git@what.you.say.icanhaserror.com:7693']
 }
 #env.roles = ['development'] # default role is local dev
@@ -28,6 +29,22 @@ def dev():
     puts("path: %s" % env.path)
 
 @task
+def staging():
+    """Set remote production environment"""
+    puts("Production server deployment mode")
+    env.path = "/var/www/staging-quips"
+    env.path_backups = '%s/backups' % env.path
+    env.path_recordings = '%s/storage/recordings' % env.path
+    env.path_profile_images = '%s/storage/profile_images' % env.path
+    env.path_current = '%s/system' % env.path
+    env.path_revisions = '%s/revisions' % env.path
+    env.path_failsafe_revision = '%s/revisions/0-fallback' % env.path
+    env.repo = "git@github.com:halfvector/quips-python.git"
+    env.reload_file = '%s/tmp/uwsgi.sock' % env.path
+    env.pip_build_cache = '%s/cache/pip.cache/' % env.path
+    env.pip_download_cache = '%s/cache/pip.downloads/' % env.path
+
+@task
 def production():
     """Set remote production environment"""
     puts("Production server deployment mode")
@@ -38,7 +55,7 @@ def production():
     env.path_current = '%s/system' % env.path
     env.path_revisions = '%s/revisions' % env.path
     env.path_failsafe_revision = '%s/revisions/0-fallback' % env.path
-    env.repo = '%s/repo.git' % env.path
+    env.repo = "git@github.com:halfvector/quips-python.git"
     env.reload_file = '%s/tmp/uwsgi.sock' % env.path
     env.pip_build_cache = '%s/cache/pip.cache/' % env.path
     env.pip_download_cache = '%s/cache/pip.downloads/' % env.path
@@ -116,9 +133,10 @@ def get_db_backup():
 # commit_id should probably be the hash from 'git rev-parse production/master'
 # but could also be used to perform a rollback to a previous revision
 @task
-@roles('production')
+@roles('staging')
 def deploy(commit_id):
-    require(['path_revisions', 'pip_download_cache'], provided_by=[production])
+    require('path_revisions', provided_by=[production])
+    require('pip_download_cache', provided_by=[production])
 
     path = os.path.dirname(os.path.realpath(__file__))
     with lcd(path):
@@ -143,13 +161,12 @@ def deploy(commit_id):
                 run('git clone %(repo)s %(path_revisions)s/%(req_commit)s' % env, True)
 
             puts("Installing requirements..")
-            with cd('%(path_revisions)s/%(req_commit)s' % env):
-                run('virtualenv venv')
-                with prefix('source venv/bin/activate'):
-                    #run('easy_install -q -f %s pip-accel' % env.pip_download_cache)
+
+            with cd(env.path), prefix('source venv/bin/activate'):
+            #with cd('%(path_revisions)s/%(req_commit)s' % env):
                     # cache and re-use cache when possible
-                    run('pip install -q --download-cache %s -f %s pip-accel' % (env.pip_download_cache, env.pip_download_cache))
-                    run('PIP_DOWNLOAD_CACHE=%s PIP_ACCEL_CACHE=%s pip-accel install -q -r %s/requirements.txt' % (env.pip_download_cache, env.pip_build_cache, env.path))
+                run('pip install -q --download-cache %s -f %s pip-accel' % (env.pip_download_cache, env.pip_download_cache))
+                run('PIP_DOWNLOAD_CACHE=%s PIP_ACCEL_CACHE=%s pip-accel install -q -r %s/requirements.txt' % (env.pip_download_cache, env.pip_build_cache, env.path))
 
             # setup static paths
             puts("Updating paths..")
@@ -167,7 +184,7 @@ def deploy(commit_id):
                 # final step: link to new revision
                 run('ln -sfn revisions/%s system' % commit_id)
 
-            run('chown :quips %s' % env.req_path)
+            run('chown :www-data %s' % env.req_path)
 
             # reload
             run('touch %s' % env.reload_file)
